@@ -64,7 +64,8 @@ class Organization(models.Model):
     payment_info = DictField()
     tax_address = DictField()
     managers = ListField()
-    actor_id = models.IntegerField(null=True, blank=True)
+    #actor_id = models.IntegerField(null=True, blank=True)
+    actor_id = models.CharField(max_length=150, null=True, blank=True)
     expenditure_limits = DictField()
 
     def has_rated_offering(self, user, offering):
@@ -96,7 +97,8 @@ class UserProfile(models.Model):
     tax_address = DictField()
     complete_name = models.CharField(max_length=100)
     payment_info = DictField()
-    actor_id = models.IntegerField(null=True, blank=True)
+    #actor_id = models.IntegerField(null=True, blank=True)
+    actor_id = models.CharField(max_length=150, null=True, blank=True)    
     access_token = models.CharField(max_length=150, null=True, blank=True)
     refresh_token = models.CharField(max_length=150, null=True, blank=True)
     provider_requested = models.BooleanField(default=False)

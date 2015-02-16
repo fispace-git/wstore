@@ -40,19 +40,26 @@ from django.conf import settings
 from social_auth.utils import dsa_urlopen
 from social_auth.backends import BaseOAuth2, OAuthBackend
 from wstore.models import Organization
-
+import jwt
 
 # idm configuration
-FIWARE_AUTHORIZATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/authorize')
-FIWARE_ACCESS_TOKEN_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/token')
-FIWARE_USER_DATA_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/user')
+#FIWARE_AUTHORIZATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/master/tokens/login')
+#FIWARE_ACCESS_TOKEN_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/master/tokens/access/codes')
+#FIWARE_USER_DATA_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/master/account')
+#FIWARE_NOTIFICATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/purchases')
+#FIWARE_APPLICATIONS_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/applications.json')
+#FIWARE_LOGOUT_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/master/tokens/logout')
+
+FIWARE_AUTHORIZATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/tokens/login')
+FIWARE_ACCESS_TOKEN_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/tokens/access/codes')
+FIWARE_USER_DATA_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/account')
 FIWARE_NOTIFICATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/purchases')
 FIWARE_APPLICATIONS_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/applications.json')
-FIWARE_LOGOUT_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/users/sign_out')
+FIWARE_LOGOUT_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/tokens/logout')
 
-FIWARE_PROVIDER_ROLE = 'ST Provider'
-FIWARE_CUSTOMER_ROLE = 'ST Customer'
-FIWARE_DEVELOPER_ROLE = 'ST Developer'
+FIWARE_PROVIDER_ROLE = 'Provider'
+FIWARE_CUSTOMER_ROLE = 'Customer'
+FIWARE_DEVELOPER_ROLE = 'Developer'
 
 
 
@@ -62,19 +69,18 @@ class FiwareBackend(OAuthBackend):
     # Default extra data to store
     EXTRA_DATA = [
         ('nickName', 'username'),
-        ('actorId', 'uid'),
     ]
 
     def get_user_id(self, details, response):
         """Return the user id, FI-WARE IdM only provides username as a unique
         identifier"""
-        return response['actorId']
+        return details['username']
 
     def get_user_details(self, response):
         """Return user details from FI-WARE account"""
-        return {'username': response.get('nickName'),
+        return {'username': response.get('preferred_username'),
                 'email': response.get('email') or '',
-                'fullname': response.get('displayName') or ''}
+                'fullname': response.get('name') or ''}
 
 
 class FiwareAuth(BaseOAuth2):
@@ -83,7 +89,7 @@ class FiwareAuth(BaseOAuth2):
     ACCESS_TOKEN_URL = FIWARE_ACCESS_TOKEN_URL
     AUTH_BACKEND = FiwareBackend
     REDIRECT_STATE = False
-    STATE_PARAMETER = False
+    STATE_PARAMETER = True
     SETTINGS_KEY_NAME = 'FIWARE_APP_ID'
     SETTINGS_SECRET_NAME = 'FIWARE_API_SECRET'
     SCOPE_SEPARATOR = ','
@@ -94,14 +100,7 @@ class FiwareAuth(BaseOAuth2):
 
     def user_data(self, access_token, *args, **kwargs):
         """Loads user data from service"""
-        url = FIWARE_USER_DATA_URL + '?' + urlencode({
-            'access_token': access_token
-        })
-
-        try:
-            data = simplejson.load(dsa_urlopen(url))
-        except ValueError:
-            data = None
+        data = jwt.decode( access_token, verify=False )
 
         return data
 
@@ -112,14 +111,13 @@ def fill_internal_user_info(*arg, **kwargs):
     response = kwargs['response']
 
     # This roles will be user organization roles
-    roles = response['roles']
+    roles = response['realm_access']['roles']
     wstore_roles = []
-
-    # Include the user actor id
-    kwargs['user'].userprofile.actor_id = response['actorId']
 
     # Save the current access token for future calls
     kwargs['user'].userprofile.access_token = response['access_token']
+    
+    kwargs['user'].userprofile.actor_id = response['preferred_username']
 
     if 'refresh_token' in response:
         kwargs['user'].userprofile.refresh_token = response['refresh_token']
@@ -128,10 +126,11 @@ def fill_internal_user_info(*arg, **kwargs):
         social.extra_data['refresh_token'] = response['refresh_token']
         social.save()
 
-    kwargs['user'].userprofile.complete_name = response['displayName']
+    kwargs['user'].userprofile.complete_name = response['name']
     kwargs['user'].userprofile.save()
 
     # Get user private organization
+    # user_org = Organization.objects.filter(name=kwargs['user'].username)
     user_org = Organization.objects.filter(actor_id=kwargs['user'].userprofile.actor_id)
     if len(user_org) == 0:
         user_org = Organization.objects.get(name=kwargs['user'].username)
@@ -145,7 +144,7 @@ def fill_internal_user_info(*arg, **kwargs):
 
     # Include new roles in the private organization
     for role in roles:
-        wstore_roles.append(role['name'])
+        wstore_roles.append(role)
 
     # Check if the user is an admin
     if 'Provider' in wstore_roles and not kwargs['user'].is_staff:
@@ -192,7 +191,6 @@ def fill_internal_user_info(*arg, **kwargs):
             if role['name'] == 'Owner':
                 if not kwargs['user'].pk in org_model.managers:
                     org_model.managers.append(kwargs['user'].pk)
-                    org_model.save()
             elif role['name'] == FIWARE_PROVIDER_ROLE:
                 org_roles.append('provider')
             elif role['name'] == FIWARE_CUSTOMER_ROLE:

@@ -54,47 +54,53 @@
         $('#message').modal('hide');
         // Inform user that is going to be redirected, including the redirection handler
         MessageManager.showYesNoWindow('The payment process will continue in a separate window', function() {
-            var newWindow = window.open(response.redirection_link);
+            var newWindow;
             var timer, timer1;
 
             // Close yes no window
             $('#message').modal('hide');
 
-            // Create a modal to lock the store during PayPal request
-            MessageManager.showMessage('Payment', 'The Paypal checkout is open in another window');
+            // Open Payment tab
+            newWindow = window.open(response.redirection_link);
 
-            $('.modal-footer').empty()
+            $(window).focus(function() {
+                // Create a modal to lock the store during PayPal request
+                MessageManager.showMessage('Payment', 'The Paypal checkout is open in another window');
 
-            // Include a cancel button
-            $('<input></input>').addClass('btn btn-danger').attr('type', 'button').attr('value', 'Cancel').click(function() {
-                $('#message').modal('hide');
-            }).appendTo('.modal-footer');
+                $('.modal-footer').empty()
 
-            // Close PayPal window in case the payment is canceled
-            $('#message').on('hidden', function(event) {
-                event.preventDefault();
-                event.stopPropagation();
-                newWindow.close();
-                $('#message-container').empty();
-            })
-
-            // Check if the PayPal window remains open
-            timer = setInterval(function() {
-                if (newWindow.closed) {
-                    clearInterval(timer);
+                // Include a cancel button
+                $('<input></input>').addClass('btn btn-danger').attr('type', 'button').attr('value', 'Cancel').click(function() {
                     $('#message').modal('hide');
-                    caller.refreshAndUpdateDetailsView();
-                } else if (newWindow.location.host == window.location.host) {
-                    clearInterval(timer);
-                    $('#message').modal('hide');
-                    MessageManager.showMessage('Payment', 'The PayPal process has finished. The external window will be closed');
+                }).appendTo('.modal-footer');
 
-                    $('.modal-footer > .btn').click(function() {
-                        newWindow.close();
+                // Close PayPal window in case the payment is canceled
+                $('#message').on('hidden', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    newWindow.close();
+                    $('#message-container').empty();
+                })
+
+                // Check if the PayPal window remains open
+                timer = setInterval(function() {
+                    if (newWindow.closed) {
+                        clearInterval(timer);
+                        $('#message').modal('hide');
                         caller.refreshAndUpdateDetailsView();
-                    });
-                }
-            }, 1000);
+                    } else if (newWindow.location.host == window.location.host) {
+                        clearInterval(timer);
+                        $('#message').modal('hide');
+                        MessageManager.showMessage('Payment', 'The PayPal process has finished. The external window will be closed');
+
+                        $('#message').on('hidden', function() {
+                            newWindow.close();
+                            caller.refreshAndUpdateDetailsView();
+                        });
+                    }
+                }, 1000);
+                $(window).off('focus');
+            });
 
             timer1 = setInterval(function() {
 
@@ -120,12 +126,14 @@
     var onSuccessFinish = function onSuccessFinish(offeringElement, response) {
         var timer;
         //Download resources
-        if ($(window.location).attr('href').indexOf('contracting') == -1) {
-            downloadResources(response);
-        }
-        //Refresh offering details view
-        offeringElement.updateOfferingInfo(caller.update.bind(caller));
         $('#message').modal('hide');
+        //Refresh offering details view
+        offeringElement.updateOfferingInfo(function(offeringInfo) {
+            this.update(offeringInfo);
+            if ($(window.location).attr('href').indexOf('contracting') == -1) {
+                downloadResources(response);
+            }
+        }.bind(caller));
 
         timer = setInterval(function() {
 
@@ -245,11 +253,11 @@
      * @param data, Offering data
      */
     var downloadResources = function downloadResources(data) {
-        var resources = data.resources;
-        for (var i = 0; i < resources.length; i++) {
-            window.open(resources[i]);
-        }
+        // Open a window with the invoice
         window.open(data.bill[0]);
+
+        // Open the download resources modal
+        $('#main-action').click();
     };
 
     /**

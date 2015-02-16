@@ -22,7 +22,7 @@ from django.contrib.auth import get_user
 from django.utils.importlib import import_module
 from django.utils.functional import SimpleLazyObject
 from django.utils.http import http_date, parse_http_date_safe
-
+import jwt
 
 class URLMiddleware(object):
 
@@ -133,8 +133,10 @@ def get_api_user(request):
     from wstore.social_auth_backend import FIWARE_USER_DATA_URL, fill_internal_user_info, FiwareBackend
     from wstore.store_commons.utils.method_request import MethodRequest
 
+    
     # Get access_token from the request
     try:
+        auth_type = request.META['HTTP_AUTHORIZATION'].split(' ', 1)[0]
         token = request.META['HTTP_AUTHORIZATION'].split(' ', 1)[1]
     except:
         return AnonymousUser()
@@ -142,18 +144,17 @@ def get_api_user(request):
     # If using the idM to authenticate users, validate the token
 
     if settings.OILAUTH:
-        opener = urllib2.build_opener()
-        url = FIWARE_USER_DATA_URL + '?access_token=' + token
-        request = MethodRequest('GET', url)
-
-        try:
+        #opener = urllib2.build_opener()
+        #url = FIWARE_USER_DATA_URL + '?access_token=' + token
+        #request = MethodRequest('GET', url)
+        if auth_type == 'Bearer':
             new_user = False
-            response = opener.open(request)
-            user_info = json.loads(response.read())
+            #response = opener.open(request)
+            user_info = jwt.decode( token, verify=False )
             # Try to get an internal user
             try:
-                user = User.objects.get(username=user_info['nickName'])
-            except:
+                user = User.objects.get(username=user_info['preferred_username'])
+            except Exception, e:
                 # The user is valid but she has never accessed wstore so
                 # internal models should be created
                 from social_auth.backends.pipeline.user import get_username
@@ -166,44 +167,36 @@ def get_api_user(request):
 
                 # Get the internal username to be used
                 details = {
-                    'username': user_info['nickName'],
+                    'username': user_info['preferred_username'],
                     'email': user_info['email'],
-                    'fullname': user_info['displayName']
+                    'fullname': user_info['name']
                 }
                 username = get_username(details)
 
                 # Create user structure
-                auth_user = create_user('', details, '', user_info['actorId'], username['username'])
+                auth_user = create_user('', details, '', user_info['preferred_username'], username['username'])
 
                 # associate user with social user
-                social_user = associate_user(FiwareBackend, auth_user['user'], user_info['actorId'])
+                social_user = associate_user(FiwareBackend, auth_user['user'], user_info['preferred_username'])
 
                 # Load  user extra data
                 request = {
                     'access_token': token
                 }
-                load_extra_data(FiwareBackend, details, request, user_info['actorId'], social_user['user'], social_user=social_user['social_user'])
+                load_extra_data(FiwareBackend, details, request, user_info['preferred_username'], social_user['user'], social_user=social_user['social_user'])
 
                 # Refresh user info
-                user = User.objects.get(username=user_info['nickName'])
+                user = User.objects.get(username=user_info['preferred_username'])
 
             # If it is a new user the auth info contained in the userprofile is not valid
             if not new_user:
                 # The user has been validated but the user info is not valid since the
                 # used token belongs to an external application
 
-                # Get FiPay token for the user
-                token = user.userprofile.access_token
-
-                # Get valid user info for Fipay
-                url = FIWARE_USER_DATA_URL + '?access_token=' + token
-                request = MethodRequest('GET', url)
-
                 try:
-                    response = opener.open(request)
-                    user_info = json.loads(response.read())
+                    #response = opener.open(request)
+                    user_info = jwt.decode( token, verify=False )
                 except Exception, e:
-
                     if e.code == 401:
                         # The access token may expired, try to refresh it
                         social = user.social_auth.filter(provider='fiware')[0]
@@ -228,8 +221,77 @@ def get_api_user(request):
                 user_info['access_token'] = token
                 user_info['refresh_token'] = user.userprofile.refresh_token
                 fill_internal_user_info((), response=user_info, user=user)
+        elif auth_type == 'username':
+        # We assume the token is the username
+            try:
+                new_user = False
+                # Try to get an internal user
+                    # The user is valid but she has never accessed wstore so
+                    # internal models should be created
+                from social_auth.backends.pipeline.user import get_username
+                from social_auth.backends.pipeline.user import create_user
+                from social_auth.backends.pipeline.social import associate_user
+                from social_auth.backends.pipeline.social import load_extra_data
+                
+                body = 'username='+settings.KEYCLOAK_ADMIN_USERNAME+'&password='+settings.KEYCLOAK_ADMIN_PASSWORD+'&client_id='+settings.KEYCLOAK_ADMIN_CLIENT_ID
+                request = MethodRequest('POST', settings.KEYCLOAK_TOKEN_GRANT_URL, body)
+                opener = urllib2.build_opener()
+                response = opener.open(request)
+                admin_token = json.loads(response.read())['access_token']
+                
+                headers = {'Authorization': 'Bearer ' + admin_token}
+                request = MethodRequest('GET', settings.KEYCLOAK_USER_DATA_URL+token, '', headers)
+                response = opener.open(request)
+                user_data = json.loads(response.read())
 
-        except Exception, e:
+                # The request is from a new user
+                new_user = True
+
+                # Get the internal username to be used
+                details = {
+                    'username': token,
+                    'email': user_data['email'],
+                    'fullname': user_data['firstName']+' '+user_data['lastName']
+                }
+                username = get_username(details)
+
+                # Create user structure
+                auth_user = create_user('', details, '', username['username'], username['username'])
+
+                # associate user with social user
+                social_user = associate_user(FiwareBackend, auth_user['user'], username['username'])
+
+                # Load  user extra data
+                request = {
+                    'access_token': token
+                }
+                #load_extra_data(FiwareBackend, details, request, None, social_user['user'], social_user=social_user['social_user'])
+
+                # Refresh user info
+                user = User.objects.get(username=token)
+                user_info = {}
+                user_info['preferred_username'] = user_data['username']
+                user_info['email'] = user_data['email']
+                user_info['given_name'] = user_data['firstName']
+                user_info['family_name'] = user_data['lastName']
+                user_info['name'] = user_data['firstName']+' '+user_data['lastName']
+                
+                headers = {'Authorization': 'Bearer ' + admin_token}
+                request = MethodRequest('GET', settings.KEYCLOAK_USER_DATA_URL+token+'/role-mappings', '', headers)
+                response = opener.open(request)
+                role_mappings = json.loads(response.read())
+                user_info['realm_access'] = {'roles':[]}
+                for mapping in role_mappings['realmMappings']:
+                    if mapping['name'] not in user_info['realm_access']['roles']:
+                        user_info['realm_access']['roles'].append(mapping['name'])
+                user_info['access_token'] = None
+                #user_info['refresh_token'] = None
+                fill_internal_user_info((), response=user_info, user=user)
+            except Exception, e:
+                import traceback
+                traceback.print_exc()
+                user = AnonymousUser()
+        else:
             user = AnonymousUser()
     else:
         try:
@@ -289,3 +351,4 @@ class ConditionalGetMiddleware(object):
                     response.status_code = 304
 
         return response
+
