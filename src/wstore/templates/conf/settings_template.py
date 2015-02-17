@@ -199,7 +199,7 @@ AUTHENTICATION_BACKENDS = (
 )
 
 
-FIWARE_APP_ID = {{ client_id }}
+FIWARE_APP_ID = '{{ client_id }}'
 FIWARE_API_SECRET = '{{ client_secret }}'
 FIWARE_IDM_ENDPOINT = '{{ idm_endpoint }}'
 
