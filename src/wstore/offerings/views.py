@@ -604,65 +604,66 @@ class ApplicationCollection(Resource):
     # Get idm applications
     @authentication_required
     def read(self, request):
-
-        # Check user roles
-        if not 'provider' in request.user.userprofile.get_current_roles():
-            return build_response(request, 403, 'Forbidden')
-
-        # Make idm request
-        from wstore.social_auth_backend import FIWARE_APPLICATIONS_URL
-        url = FIWARE_APPLICATIONS_URL
-
-        if request.user.userprofile.is_user_org():
-            actor_id = request.user.userprofile.actor_id
-        else:
-            actor_id = request.user.userprofile.current_organization.actor_id
-
-        token = request.user.userprofile.access_token
-
-        url += '?actor_id=' + str(actor_id)
-        url += '&access_token=' + token
-
-        req = MethodRequest('GET', url)
-
-        # Call idm
-        opener = urllib2.build_opener()
-
-        resp = []
         try:
-            response = opener.open(req)
-            # Make the response
-            resp = response.read()
-        except Exception, e:
+            # Check user roles
+            if not 'provider' in request.user.userprofile.get_current_roles():
+                return build_response(request, 403, 'Forbidden')
 
-            if e.code == 401:
-                try:
-                    # Try to refresh the access token
-                    social = request.user.social_auth.filter(provider='fiware')[0]
-                    social.refresh_token()
+            # Make idm request
+            from wstore.social_auth_backend import FIWARE_APPLICATIONS_URL
+            url = FIWARE_APPLICATIONS_URL
 
-                    # Update credentials
-                    social = request.user.social_auth.filter(provider='fiware')[0]
-                    credentials = social.extra_data
-
-                    request.user.userprofile.access_token = credentials['access_token']
-                    request.user.userprofile.refresh_token = credentials['refresh_token']
-                    request.user.userprofile.save()
-
-                    # Try to connect again
-                    token = request.user.userprofile.access_token
-                    url += '?actor_id=' + str(actor_id)
-                    url += '&access_token=' + token
-
-                    req = MethodRequest('GET', url)
-                
-                    response = opener.open(req)
-                    # Make the response
-                    resp = response.read()
-                except:
-                    resp = json.dumps([])
+            if request.user.userprofile.is_user_org():
+                actor_id = request.user.userprofile.actor_id
             else:
-                resp = json.dumps([])
+                actor_id = request.user.userprofile.current_organization.actor_id
 
+            token = request.user.userprofile.access_token
+
+            url += '?actor_id=' + str(actor_id)
+            url += '&access_token=' + token
+
+            req = MethodRequest('GET', url)
+
+            # Call idm
+            opener = urllib2.build_opener()
+
+            resp = []
+            try:
+                response = opener.open(req)
+                # Make the response
+                resp = response.read()
+            except Exception, e:
+
+                if e.code == 401:
+                    try:
+                        # Try to refresh the access token
+                        social = request.user.social_auth.filter(provider='fiware')[0]
+                        social.refresh_token()
+
+                        # Update credentials
+                        social = request.user.social_auth.filter(provider='fiware')[0]
+                        credentials = social.extra_data
+
+                        request.user.userprofile.access_token = credentials['access_token']
+                        request.user.userprofile.refresh_token = credentials['refresh_token']
+                        request.user.userprofile.save()
+
+                        # Try to connect again
+                        token = request.user.userprofile.access_token
+                        url += '?actor_id=' + str(actor_id)
+                        url += '&access_token=' + token
+
+                        req = MethodRequest('GET', url)
+                    
+                        response = opener.open(req)
+                        # Make the response
+                        resp = response.read()
+                    except:
+                        resp = json.dumps([])
+                else:
+                    resp = json.dumps([])
+        except:
+            resp = json.dumps([])
         return HttpResponse(resp, status=200, mimetype='application/json;charset=UTF-8')
 
