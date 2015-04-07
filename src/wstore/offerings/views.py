@@ -39,7 +39,7 @@ from wstore.offerings.resources_management import register_resource, get_provide
 update_resource, upgrade_resource
 from wstore.store_commons.utils.method_request import MethodRequest
 from wstore.social.reviews.review_manager import ReviewManager
-
+from django.conf import settings
 
 ####################################################################################################
 #########################################    Offerings   ###########################################
@@ -611,59 +611,24 @@ class ApplicationCollection(Resource):
 
             # Make idm request
             from wstore.social_auth_backend import FIWARE_APPLICATIONS_URL
-            url = FIWARE_APPLICATIONS_URL
 
-            if request.user.userprofile.is_user_org():
-                actor_id = request.user.userprofile.actor_id
-            else:
-                actor_id = request.user.userprofile.current_organization.actor_id
-
-            token = request.user.userprofile.access_token
-
-            url += '?actor_id=' + str(actor_id)
-            url += '&access_token=' + token
-
-            req = MethodRequest('GET', url)
-
-            # Call idm
+            body = 'username='+settings.KEYCLOAK_ADMIN_USERNAME+'&password='+settings.KEYCLOAK_ADMIN_PASSWORD+'&client_id='+settings.KEYCLOAK_ADMIN_CLIENT_ID
+            request = MethodRequest('POST', settings.KEYCLOAK_TOKEN_GRANT_URL, body)
             opener = urllib2.build_opener()
+            response = opener.open(request)
+            admin_token = json.loads(response.read())['access_token']
+            headers = {'Authorization': 'Bearer ' + admin_token}
+            request = MethodRequest('GET', FIWARE_APPLICATIONS_URL, '', headers)
+            response = opener.open(request)
+            resp = json.loads(response.read())
 
-            resp = []
-            try:
-                response = opener.open(req)
-                # Make the response
-                resp = response.read()
-            except Exception, e:
+            for app in resp:
+                app['url'] = app['baseUrl']
+                if app['url'] is None:
+                    app['url'] = ''
+                app['description'] = ''
 
-                if e.code == 401:
-                    try:
-                        # Try to refresh the access token
-                        social = request.user.social_auth.filter(provider='fiware')[0]
-                        social.refresh_token()
-
-                        # Update credentials
-                        social = request.user.social_auth.filter(provider='fiware')[0]
-                        credentials = social.extra_data
-
-                        request.user.userprofile.access_token = credentials['access_token']
-                        request.user.userprofile.refresh_token = credentials['refresh_token']
-                        request.user.userprofile.save()
-
-                        # Try to connect again
-                        token = request.user.userprofile.access_token
-                        url += '?actor_id=' + str(actor_id)
-                        url += '&access_token=' + token
-
-                        req = MethodRequest('GET', url)
-                    
-                        response = opener.open(req)
-                        # Make the response
-                        resp = response.read()
-                    except:
-                        resp = json.dumps([])
-                else:
-                    resp = json.dumps([])
-        except:
+            resp = json.dumps(resp)
+        except Exception as e:
             resp = json.dumps([])
         return HttpResponse(resp, status=200, mimetype='application/json;charset=UTF-8')
-

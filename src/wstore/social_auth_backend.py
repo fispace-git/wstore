@@ -54,7 +54,7 @@ FIWARE_AUTHORIZATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/f
 FIWARE_ACCESS_TOKEN_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/tokens/access/codes')
 FIWARE_USER_DATA_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/account')
 FIWARE_NOTIFICATION_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/purchases')
-FIWARE_APPLICATIONS_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/applications.json')
+FIWARE_APPLICATIONS_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/admin/realms/fispace/applications')
 FIWARE_LOGOUT_URL = urljoin(settings.FIWARE_IDM_ENDPOINT, '/auth/realms/fispace/tokens/logout')
 
 FIWARE_PROVIDER_ROLE = 'Provider'
