@@ -241,7 +241,9 @@ def get_offerings(user, filter_='published', owned=False, pagination=None, sort=
 
     else:
         if  filter_ == 'published':
-            prov_offerings = offerings.find({'state': 'published'}).sort(sorting, order)
+            current_organization = user.userprofile.current_organization
+            prov_offerings = offerings.find({"$or": [{'state': 'published'}, {'owner_organization_id': ObjectId(current_organization.id)}]}).sort(sorting, order)
+
 
     if pagination:
         prov_offerings = prov_offerings.skip(int(pagination['skip']) - 1).limit(int(pagination['limit']))
