@@ -40,6 +40,9 @@ from django.conf import settings
 from social_auth.utils import dsa_urlopen
 from social_auth.backends import BaseOAuth2, OAuthBackend
 from wstore.models import Organization
+from wstore.store_commons.utils.method_request import MethodRequest
+import json
+import urllib2
 import jwt
 
 # idm configuration
@@ -162,29 +165,38 @@ def fill_internal_user_info(*arg, **kwargs):
         'organization': user_org.pk,
         'roles': user_roles
     })
+    body = 'username='+settings.KEYCLOAK_ADMIN_USERNAME+'&password='+settings.KEYCLOAK_ADMIN_PASSWORD+'&client_id='+settings.KEYCLOAK_ADMIN_CLIENT_ID
+    request = MethodRequest('POST', settings.KEYCLOAK_TOKEN_GRANT_URL, body)
+    opener = urllib2.build_opener()
+    response = opener.open(request)
+    admin_token = json.loads(response.read())['access_token']
+
+    headers = {'Authorization': 'Bearer ' + admin_token}
+    request = MethodRequest('GET', settings.AIL_URL+'/api/users/' + kwargs['user'].username + '/companies', '', headers)
+    response = opener.open(request)
+    data = json.loads(response.read())
 
     # Check organizations info
     idm_organizations = []
-    if 'organizations' in response:
-        idm_organizations = response['organizations']
+    for org in data:
+        idm_organizations.append(org['data'])
 
     for org in idm_organizations:
-
         # Check if the organization exist
-        org_model = Organization.objects.filter(actor_id=org['actorId'])
+        org_model = Organization.objects.filter(actor_id=org['id'])
 
         if len(org_model) == 0:
             # Create the organization
             org_model = Organization.objects.create(
-                name=org['displayName'],
+                name=org['name'],
                 private=False,
-                actor_id=org['actorId']
+                actor_id=org['id']
             )
         else:
             org_model = org_model[0]
 
         # Check organization roles
-        idm_org_roles = org['roles']
+        idm_org_roles = org['companyRoles']
         org_roles = []
 
         for role in idm_org_roles:
