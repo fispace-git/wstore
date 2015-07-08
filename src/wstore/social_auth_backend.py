@@ -174,7 +174,10 @@ def fill_internal_user_info(*arg, **kwargs):
     headers = {'Authorization': 'Bearer ' + admin_token}
     request = MethodRequest('GET', settings.AIL_URL+'/api/users/' + kwargs['user'].username + '/companies', '', headers)
     response = opener.open(request)
-    data = json.loads(response.read())
+    try:
+        data = json.loads(response.read())
+    except ValueError, e:
+        data = []
 
     # Check organizations info
     idm_organizations = []
