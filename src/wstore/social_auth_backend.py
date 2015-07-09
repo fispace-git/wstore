@@ -172,54 +172,64 @@ def fill_internal_user_info(*arg, **kwargs):
     admin_token = json.loads(response.read())['access_token']
 
     headers = {'Authorization': 'Bearer ' + admin_token}
+    #if we want to use the user token, we need to make sure that the token is valid (refresh if necessary) in order to refresh token
+    #we need a valir bearer token to begin with. Therefore this method won't work with username workaround
+    #headers = {'Authorization': 'Bearer ' + kwargs['user'].userprofile.access_token}
+    
     request = MethodRequest('GET', settings.AIL_URL+'/api/users/' + kwargs['user'].username + '/companies', '', headers)
     response = opener.open(request)
+
     try:
         data = json.loads(response.read())
     except ValueError, e:
         data = []
+    try:
+        # Check organizations info
+        idm_organizations = []
+        for org in data:
+            if 'data' in org:
+                idm_organizations.append(org['data'])
 
-    # Check organizations info
-    idm_organizations = []
-    for org in data:
-        idm_organizations.append(org['data'])
+        for org in idm_organizations:
+            # Check if the organization exist
+            org_model = Organization.objects.filter(actor_id=org['id'])
 
-    for org in idm_organizations:
-        # Check if the organization exist
-        org_model = Organization.objects.filter(actor_id=org['id'])
+            if len(org_model) == 0:
+                # Create the organization
+                org_model = Organization.objects.create(
+                    name=org['name'],
+                    private=False,
+                    actor_id=org['id']
+                )
+            else:
+                org_model = org_model[0]
 
-        if len(org_model) == 0:
-            # Create the organization
-            org_model = Organization.objects.create(
-                name=org['name'],
-                private=False,
-                actor_id=org['id']
-            )
-        else:
-            org_model = org_model[0]
+            # Check organization roles
+            idm_org_roles = org['companyRoles']
+            org_roles = []
 
-        # Check organization roles
-        idm_org_roles = org['companyRoles']
-        org_roles = []
+            for role in idm_org_roles:
+                if role['name'] == 'Owner':
+                    if not kwargs['user'].pk in org_model.managers:
+                        org_model.managers.append(kwargs['user'].pk)
+                elif role['name'] == FIWARE_PROVIDER_ROLE:
+                    org_roles.append('provider')
+                elif role['name'] == FIWARE_CUSTOMER_ROLE:
+                    org_roles.append('customer')
+                elif role['name'] == FIWARE_DEVELOPER_ROLE:
+                    org_roles.append('developer')
 
-        for role in idm_org_roles:
-            if role['name'] == 'Owner':
-                if not kwargs['user'].pk in org_model.managers:
-                    org_model.managers.append(kwargs['user'].pk)
-            elif role['name'] == FIWARE_PROVIDER_ROLE:
-                org_roles.append('provider')
-            elif role['name'] == FIWARE_CUSTOMER_ROLE:
-                org_roles.append('customer')
-            elif role['name'] == FIWARE_DEVELOPER_ROLE:
-                org_roles.append('developer')
+            organizations.append({
+                'organization': org_model.pk,
+                'roles': org_roles
+            })
 
-        organizations.append({
-            'organization': org_model.pk,
-            'roles': org_roles
-        })
-
-    kwargs['user'].userprofile.organizations = organizations
-    kwargs['user'].userprofile.save()
+        kwargs['user'].userprofile.organizations = organizations
+        kwargs['user'].userprofile.save()
+    except Exception as e:
+       import sys
+       tb = sys.exc_info()[2]
+       print str(e), tb.tb_lineno
 
 
 # Backend definition
