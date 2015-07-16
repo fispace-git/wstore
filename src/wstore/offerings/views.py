@@ -609,26 +609,7 @@ class ApplicationCollection(Resource):
             if not 'provider' in request.user.userprofile.get_current_roles():
                 return build_response(request, 403, 'Forbidden')
 
-            # Make idm request
-            from wstore.social_auth_backend import FIWARE_APPLICATIONS_URL
-
-            body = 'username='+settings.KEYCLOAK_ADMIN_USERNAME+'&password='+settings.KEYCLOAK_ADMIN_PASSWORD+'&client_id='+settings.KEYCLOAK_ADMIN_CLIENT_ID
-            request = MethodRequest('POST', settings.KEYCLOAK_TOKEN_GRANT_URL, body)
-            opener = urllib2.build_opener()
-            response = opener.open(request)
-            admin_token = json.loads(response.read())['access_token']
-            headers = {'Authorization': 'Bearer ' + admin_token}
-            request = MethodRequest('GET', FIWARE_APPLICATIONS_URL, '', headers)
-            response = opener.open(request)
-            resp = json.loads(response.read())
-
-            for app in resp:
-                app['url'] = app['baseUrl']
-                if app['url'] is None:
-                    app['url'] = ''
-                app['description'] = ''
-
-            resp = json.dumps(resp)
+            resp = json.dumps([])
         except Exception as e:
             resp = json.dumps([])
         return HttpResponse(resp, status=200, mimetype='application/json;charset=UTF-8')
