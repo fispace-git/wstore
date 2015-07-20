@@ -224,69 +224,7 @@ def get_api_user(request):
         elif auth_type == 'username':
         # We assume the token is the username
             try:
-                new_user = False
-                # Try to get an internal user
-                    # The user is valid but she has never accessed wstore so
-                    # internal models should be created
-                from social_auth.backends.pipeline.user import get_username
-                from social_auth.backends.pipeline.user import create_user
-                from social_auth.backends.pipeline.social import associate_user
-                from social_auth.backends.pipeline.social import load_extra_data
-                
-                body = 'username='+settings.KEYCLOAK_ADMIN_USERNAME+'&password='+settings.KEYCLOAK_ADMIN_PASSWORD+'&client_id='+settings.KEYCLOAK_ADMIN_CLIENT_ID
-                request = MethodRequest('POST', settings.KEYCLOAK_TOKEN_GRANT_URL, body)
-                opener = urllib2.build_opener()
-                response = opener.open(request)
-                admin_token = json.loads(response.read())['access_token']
-                
-                headers = {'Authorization': 'Bearer ' + admin_token}
-                request = MethodRequest('GET', settings.KEYCLOAK_USER_DATA_URL+token, '', headers)
-                response = opener.open(request)
-                user_data = json.loads(response.read())
-
-                # The request is from a new user
-                new_user = True
-
-                # Get the internal username to be used
-                details = {
-                    'username': token,
-                    'email': user_data['email'],
-                    'fullname': user_data['firstName']+' '+user_data['lastName']
-                }
-                username = get_username(details)
-
-                # Create user structure
-                auth_user = create_user('', details, '', username['username'], username['username'])
-
-                # associate user with social user
-                social_user = associate_user(FiwareBackend, auth_user['user'], username['username'])
-
-                # Load  user extra data
-                request = {
-                    'access_token': token
-                }
-                #load_extra_data(FiwareBackend, details, request, None, social_user['user'], social_user=social_user['social_user'])
-
-                # Refresh user info
-                user = User.objects.get(username=token)
-                user_info = {}
-                user_info['preferred_username'] = user_data['username']
-                user_info['email'] = user_data['email']
-                user_info['given_name'] = user_data['firstName']
-                user_info['family_name'] = user_data['lastName']
-                user_info['name'] = user_data['firstName']+' '+user_data['lastName']
-                
-                headers = {'Authorization': 'Bearer ' + admin_token}
-                request = MethodRequest('GET', settings.KEYCLOAK_USER_DATA_URL+token+'/role-mappings', '', headers)
-                response = opener.open(request)
-                role_mappings = json.loads(response.read())
-                user_info['realm_access'] = {'roles':[]}
-                for mapping in role_mappings['realmMappings']:
-                    if mapping['name'] not in user_info['realm_access']['roles']:
-                        user_info['realm_access']['roles'].append(mapping['name'])
-                user_info['access_token'] = None
-                #user_info['refresh_token'] = None
-                fill_internal_user_info((), response=user_info, user=user)
+                user = User.objects.get(username=user_info['preferred_username'])
             except Exception, e:
                 import traceback
                 traceback.print_exc()
