@@ -224,7 +224,7 @@ def get_api_user(request):
         elif auth_type == 'username':
         # We assume the token is the username
             try:
-                user = User.objects.get(username=user_info['preferred_username'])
+                user = User.objects.get(username=token)
             except Exception, e:
                 import traceback
                 traceback.print_exc()
