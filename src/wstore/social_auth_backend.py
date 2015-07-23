@@ -165,17 +165,13 @@ def fill_internal_user_info(*arg, **kwargs):
         'organization': user_org.pk,
         'roles': user_roles
     })
-    body = 'username='+settings.KEYCLOAK_ADMIN_USERNAME+'&password='+settings.KEYCLOAK_ADMIN_PASSWORD+'&client_id='+settings.KEYCLOAK_ADMIN_CLIENT_ID
-    request = MethodRequest('POST', settings.KEYCLOAK_TOKEN_GRANT_URL, body)
-    opener = urllib2.build_opener()
-    response = opener.open(request)
-    admin_token = json.loads(response.read())['access_token']
 
-    headers = {'Authorization': 'Bearer ' + admin_token}
+    headers = {'Authorization': 'Bearer ' + response['access_token']}
     #if we want to use the user token, we need to make sure that the token is valid (refresh if necessary) in order to refresh token
     #we need a valir bearer token to begin with. Therefore this method won't work with username workaround
-    #headers = {'Authorization': 'Bearer ' + kwargs['user'].userprofile.access_token}
+    headers = {'Authorization': 'Bearer ' + kwargs['user'].userprofile.access_token}
     
+    opener = urllib2.build_opener()
     request = MethodRequest('GET', settings.AIL_URL+'/api/users/' + kwargs['user'].username + '/companies', '', headers)
     response = opener.open(request)
 
