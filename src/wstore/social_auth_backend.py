@@ -186,9 +186,9 @@ def fill_internal_user_info(*arg, **kwargs):
     try:
         # Check organizations info
         idm_organizations = []
-        for org in data:
-            if 'data' in org:
-                idm_organizations.append(org['data'])
+        if 'companyList' in data:
+            for org in data['companyList']:
+                idm_organizations.append(org)
 
         for org in idm_organizations:
             # Check if the organization exist
