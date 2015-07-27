@@ -166,18 +166,18 @@ def fill_internal_user_info(*arg, **kwargs):
         'roles': user_roles
     })
 
-    headers = {'Authorization': 'Bearer ' + response['access_token']}
     #if we want to use the user token, we need to make sure that the token is valid (refresh if necessary) in order to refresh token
     #we need a valir bearer token to begin with. Therefore this method won't work with username workaround
     headers = {'Authorization': 'Bearer ' + kwargs['user'].userprofile.access_token}
     
     opener = urllib2.build_opener()
     request = MethodRequest('GET', settings.AIL_URL+'/api/users/' + kwargs['user'].username + '/companies', '', headers)
-    response = opener.open(request)
+    
 
     try:
+	    response = opener.open(request)
         data = json.loads(response.read())
-    except ValueError, e:
+    except Exception, e:
         data = []
     try:
         # Check organizations info
