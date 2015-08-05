@@ -175,7 +175,7 @@ def fill_internal_user_info(*arg, **kwargs):
     
 
     try:
-	    response = opener.open(request)
+        response = opener.open(request)
         data = json.loads(response.read())
     except Exception, e:
         data = []
