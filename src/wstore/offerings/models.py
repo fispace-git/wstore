@@ -22,6 +22,7 @@ from urlparse import urljoin
 from django.contrib.auth.models import User
 from django.db import models
 from djangotoolbox.fields import ListField, DictField, EmbeddedModelField
+from django.contrib.sites.models import Site
 
 from wstore.models import Marketplace
 from wstore.models import Organization, Context
@@ -98,8 +99,7 @@ class Resource(models.Model):
             url = self.download_link
         else:
             # Build the URL for downloading the resource from WStore
-            cnt = Context.objects.all()[0]
-            url = urljoin(cnt.site.domain, self.resource_path)
+            url = urljoin(Site.objects.all()[0].domain, self.resource_path)
 
         return url
 

@@ -102,7 +102,7 @@ class Profile(models.Model):
     def send_activation_email(self):
         """
         """
-        site = Context.objects.all()[0].site.domain
+        site = Site.objects.all()[0].domain
         if site.endswith('/'):
             site = site[:-1]
 

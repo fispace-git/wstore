@@ -34,6 +34,7 @@ from django.conf import settings
 from django.template import loader
 from django.template import Context as TmplContext
 from django.core.exceptions import PermissionDenied
+from django.contrib.sites.models import Site
 
 from wstore.repository_adaptor.repositoryAdaptor import RepositoryAdaptor
 from wstore.market_adaptor.marketadaptor import MarketAdaptor
@@ -301,7 +302,7 @@ def _create_basic_usdl(usdl_info):
     else:
         usdl_info['base_uri'] = usdl_info['base_uri'] + '/storeOfferingCollection/'
 
-    site = Context.objects.all()[0].site.domain
+    site = Site.objects.all()[0].domain
 
     if site.endswith('/'):
         site = site[:-1]
