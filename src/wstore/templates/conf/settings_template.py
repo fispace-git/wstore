@@ -53,7 +53,7 @@ THEME_ACTIVE = 'defaulttheme'
 # Local time zone for this installation.
 
 # Language code for this installation.
-LANGUAGE_CODE = 'en'
+LANGUAGE_CODE = 'en-us'
 
 SITE_ID=u'{{ site_id }}'
 
